@@ -5,13 +5,15 @@ import json
 import time
 from utilities import load_model, load_label_map, show_inference, parse_output_dict
 from custom_np_encoder import NumpyArrayEncoder
+import requests
 
 
 model_path = "models/export/saved_model"
 labels_path = "data/label_map.pbtxt"
 
-vis_threshold = 0.6
+vis_threshold = 0.8
 max_boxes = 20
+NodeMCU_ip_address=""
 
 detection_model = load_model(model_path)
 category_index = load_label_map(labels_path)
@@ -49,10 +51,21 @@ def gen_frames():
             parsed_output_dict.update({"image size": "size={}x{}".format(img.shape[1], img.shape[0])})
 
             # build a response dict to send back to client
-            response = parsed_output_dict
             img_array = np.asarray(response["image data"])
-            cv2.imwrite("filename.png", img_array)
-            img = cv2.imread("filename.png")
+            if len(parsed_output_dict["detections"])>0:
+                url=""
+                if(parsed_output_dict["detections"][0]["Defect"] >= str(vis_threshold*100)+"%"):
+                    url = NodeMCU_ip_address+"/0"
+                    cv2.imwrite("detected/"+str(stime)+".png", img_array)
+                    img = cv2.imread("detected/"+str(stime)+".png")
+                else:
+                    url = NodeMCU_ip_address+"/1"
+                    cv2.imwrite("not_detected/"+str(stime)+".png", img_array)
+                    img = cv2.imread("not_detected/"+str(stime)+".png")
+                try:
+                    response = requests.request("GET", url, headers={}, data={})        
+                except:
+                    None
             frame = cv2.imencode('.jpg', img)[1].tobytes()
             
             # encode response
